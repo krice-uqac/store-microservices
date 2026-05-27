@@ -1,14 +1,42 @@
+version: '3.8'
+
 services:
   auth-db:
     image: postgres:16-alpine
+    container_name: auth-service-db
     environment:
-      POSTGRES_USER: auth_user_dev
-      POSTGRES_PASSWORD: auth_pass_dev
-      POSTGRES_DB: auth_db_dev
+      POSTGRES_USER: auth_user_dev         # Correspond à USER
+      POSTGRES_PASSWORD: auth_pass_dev     # Correspond à PASSWORD
+      POSTGRES_DB: auth_db_dev             # Correspond à NAME
     ports:
-        - "5432:5432"
+        - "5432:5432"                      #
     volumes:
-      - auth-db-data:/var/lib/postgresql/data
+      - auth-db-data:/var/lib/postgresql/data #
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth_user_dev -d auth_db_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  auth-service:
+    image: ghcr.io/krice-uqac/auth-service:latest
+    container_name: auth-service-app
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - DATABASE_HOST=auth-db              # Injecté dans l'entrypoint
+      - DATABASE_PORT=5432                 # Injecté dans l'entrypoint
+      - DATABASE_USER=auth_user_dev        # Injecté dans l'entrypoint
+      - DATABASE_PASSWORD=auth_pass_dev    # Injecté dans l'entrypoint
+      - DATABASE_NAME=auth_db_dev          # Injecté dans l'entrypoint
+      - SECRET_KEY=votre_secret_key_de_production
+      - ACCESS_TOKEN_EXPIRE_MINUTES=15
+      - REFRESH_TOKEN_EXPIRE_DAYS=7
+      - ALGORITHM=HS256
+    depends_on:
+      auth-db:
+        condition: service_healthy         # Attend que l'état de Postgres soit validé par le healthcheck
 
 volumes:
-    auth-db-data:
+  auth-db-data:                            #
