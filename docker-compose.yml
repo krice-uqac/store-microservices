@@ -91,5 +91,27 @@ services:
       auth-db:
           condition: service_healthy
 
-
-
+  inventory-service:
+    image: ghcr.io/krice-uqac/store-microservices-inventory-service:latest
+    container_name: inventory-service-app
+    ports:
+      - "8001:8001"
+    environment:
+      - DEBUG=True
+      - DATABASE_HOST=inventory-db
+      - DATABASE_PORT=5432
+      - DATABASE_USER=inventory_user_dev
+      - DATABASE_PASSWORD=inventory_pass_dev
+      - DATABASE_NAME=inventory_db_dev
+      - RABBITMQ_URL=amqp://store_broker:broker_secure_pass@rabbitmq:5672/
+      - SECRET_KEY=317273fc10fb454c2916b9f0d416edf0de8759df3a5361021e75af3c0ca8a0a2
+      - ALGORITHM=HS256
+      - JWT_TOKEN_URL=http://auth-service:8000/auth/login
+    networks:
+      - store-backend-network
+      - store-frontend-network
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
