@@ -69,7 +69,9 @@ services:
       retries: 5
 
   auth-service:
-    image: ghcr.io/krice-uqac/store-microservices-auth-service:latest
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
     container_name: auth-service-app
     ports:
       - "8000:8000"

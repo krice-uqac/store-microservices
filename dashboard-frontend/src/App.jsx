@@ -7,8 +7,11 @@ export default function App() {
   const [userRole, setUserRole] = useState(localStorage.getItem('role') || '');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [registerRole, setRegisterRole] = useState('read_only');
+  const [isRegistering, setIsRegistering] = useState(false);
   const [stocks, setStocks] = useState([]);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   // Formulaire de restock
   const [prodIdInput, setProdIdInput] = useState('');
@@ -34,6 +37,7 @@ export default function App() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccessMsg('');
     try {
       // Envoi des identifiants en JSON au auth-service
       const res = await authApi.post('/auth/login', {
@@ -42,9 +46,6 @@ export default function App() {
       });
       const accessToken = res.data.access_token;
 
-      // Ici, on décode de manière simpliste ou on présume le rôle retourné
-      // Idéalement votre auth-service renvoie le rôle dans le profil ou le token
-      // On va décoder grossièrement la partie payload du JWT pour obtenir le rôle
       const payload = JSON.parse(atob(accessToken.split('.')[1]));
 
       localStorage.setItem('token', accessToken);
@@ -54,6 +55,28 @@ export default function App() {
       setUserRole(payload.role || 'USER');
     } catch (err) {
       setError('Identifiants invalides ou serveur indisponible');
+    }
+  };
+
+  // Inscription
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+    try {
+      await authApi.post('/auth/register', {
+        email: username,
+        password: password,
+        role: registerRole
+      });
+      setSuccessMsg('Compte créé avec succès ! Connectez-vous.');
+      setIsRegistering(false);
+    } catch (err) {
+      if (err.response && err.response.data && err.response.data.detail) {
+        setError(err.response.data.detail);
+      } else {
+        setError("Erreur lors de l'inscription");
+      }
     }
   };
 
@@ -81,32 +104,59 @@ export default function App() {
     }
   };
 
-  // ÉCRAN DE LOGIN
+  // ÉCRAN DE LOGIN / REGISTER
   if (!token) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <form onSubmit={handleLogin} className="bg-white p-8 rounded-lg shadow-md w-96">
-          <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">Store Microservices</h2>
+        <form onSubmit={isRegistering ? handleRegister : handleLogin} className="bg-white p-8 rounded-lg shadow-md w-96">
+          <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">
+            {isRegistering ? "Inscription" : "Connexion"}
+          </h2>
           {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+          {successMsg && <p className="text-green-600 text-sm mb-4">{successMsg}</p>}
+          
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700">Email</label>
             <input type="email" value={username} onChange={e => setUsername(e.target.value)} required
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-gray-50 border" />
           </div>
+          
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700">Mot de passe</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-gray-50 border" />
           </div>
+
+          {isRegistering && (
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700">Rôle (pour la démo)</label>
+              <select value={registerRole} onChange={e => setRegisterRole(e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-gray-50 border">
+                <option value="admin">Admin</option>
+                <option value="read_write">Lecture / Écriture</option>
+                <option value="read_only">Lecture Seule</option>
+              </select>
+            </div>
+          )}
+
           <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded-md font-semibold hover:bg-blue-700">
-            Se connecter
+            {isRegistering ? "S'inscrire" : "Se connecter"}
           </button>
+
+          <p className="mt-4 text-sm text-center text-gray-600">
+            {isRegistering ? "Déjà un compte ?" : "Pas encore de compte ?"}
+            <button type="button" onClick={() => { setIsRegistering(!isRegistering); setError(''); setSuccessMsg(''); }} className="ml-1 text-blue-600 hover:underline">
+              {isRegistering ? "Connectez-vous" : "Créez-en un"}
+            </button>
+          </p>
         </form>
       </div>
     );
   }
 
   // TABLEAU DE BORD PRINCIPAL
+  const isAdmin = userRole.toUpperCase() === 'ADMIN';
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
@@ -159,7 +209,7 @@ export default function App() {
           {/* Section Action Restock (Visible/Utile uniquement pour l'ADMIN) */}
           <div className="bg-white p-6 rounded-lg shadow-sm h-fit">
             <h3 className="text-lg font-bold mb-4 text-gray-700">Réapprovisionnement (Restock)</h3>
-            {userRole === 'ADMIN' ? (
+            {isAdmin ? (
               <form onSubmit={handleRestock}>
                 <div className="mb-4">
                   <label className="block text-xs font-medium text-gray-500 uppercase">Product UUID</label>
