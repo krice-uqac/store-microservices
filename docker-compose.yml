@@ -24,7 +24,7 @@ services:
     networks:
       - store-backend-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U auth_user_dev -d auth_db_dev"]
+      test: [ "CMD-SHELL", "pg_isready -U auth_user_dev -d auth_db_dev" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -43,7 +43,7 @@ services:
     networks:
       - store-backend-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U inventory_user_dev -d inventory_db_dev"]
+      test: [ "CMD-SHELL", "pg_isready -U inventory_user_dev -d inventory_db_dev" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -63,15 +63,13 @@ services:
     networks:
       - store-backend-network
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      test: [ "CMD", "rabbitmq-diagnostics", "check_running" ]
       interval: 10s
       timeout: 5s
       retries: 5
 
   auth-service:
-    build:
-      context: ./auth-service
-      dockerfile: Dockerfile
+    image: ghcr.io/krice-uqac/store-microservices-auth-service:latest
     container_name: auth-service-app
     ports:
       - "8000:8000"
@@ -91,12 +89,10 @@ services:
       - store-frontend-network
     depends_on:
       auth-db:
-          condition: service_healthy
+        condition: service_healthy
 
   inventory-service:
-    build:
-      context: ./inventory-service
-      dockerfile: Dockerfile
+    image: ghcr.io/krice-uqac/store-microservices-inventory-service:latest
     container_name: inventory-service-app
     ports:
       - "8001:8001"
