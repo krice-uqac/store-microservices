@@ -92,7 +92,9 @@ services:
           condition: service_healthy
 
   inventory-service:
-    image: ghcr.io/krice-uqac/store-microservices-inventory-service:latest
+    build:
+      context: ./inventory-service
+      dockerfile: Dockerfile
     container_name: inventory-service-app
     ports:
       - "8001:8001"
