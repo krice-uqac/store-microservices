@@ -1,14 +1,117 @@
+version: '3.8'
+
+networks:
+  store-frontend-network:
+    driver: bridge
+  store-backend-network:
+    driver: bridge
+
+volumes:
+  auth_db_data:
+  inventory_db_data:
+  rabbitmq_data:
+
 services:
   auth-db:
     image: postgres:16-alpine
+    container_name: auth-service-db
     environment:
       POSTGRES_USER: auth_user_dev
       POSTGRES_PASSWORD: auth_pass_dev
       POSTGRES_DB: auth_db_dev
-    ports:
-        - "5432:5432"
     volumes:
-      - auth-db-data:/var/lib/postgresql/data
+      - auth_db_data:/var/lib/postgresql/data
+    networks:
+      - store-backend-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U auth_user_dev -d auth_db_dev" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
 
-volumes:
-    auth-db-data:
+  inventory-db:
+    image: postgres:16-alpine
+    container_name: inventory-service-db
+    environment:
+      POSTGRES_USER: inventory_user_dev
+      POSTGRES_PASSWORD: inventory_pass_dev
+      POSTGRES_DB: inventory_db_dev
+    volumes:
+      - inventory_db_data:/var/lib/postgresql/data
+    networks:
+      - store-backend-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U inventory_user_dev -d inventory_db_dev" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5433:5432"
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: store-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: store_broker
+      RABBITMQ_DEFAULT_PASS: broker_secure_pass
+    ports:
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - store-backend-network
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "check_running" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  auth-service:
+    image: ghcr.io/krice-uqac/store-microservices-auth-service:latest
+    container_name: auth-service-app
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - DATABASE_HOST=auth-db
+      - DATABASE_PORT=5432
+      - DATABASE_USER=auth_user_dev
+      - DATABASE_PASSWORD=auth_pass_dev
+      - DATABASE_NAME=auth_db_dev
+      - SECRET_KEY=317273fc10fb454c2916b9f0d416edf0de8759df3a5361021e75af3c0ca8a0a2
+      - ACCESS_TOKEN_EXPIRE_MINUTES=15
+      - REFRESH_TOKEN_EXPIRE_DAYS=7
+      - ALGORITHM=HS256
+    networks:
+      - store-backend-network
+      - store-frontend-network
+    depends_on:
+      auth-db:
+        condition: service_healthy
+
+  inventory-service:
+    image: ghcr.io/krice-uqac/store-microservices-inventory-service:latest
+    container_name: inventory-service-app
+    ports:
+      - "8001:8001"
+    environment:
+      - DEBUG=True
+      - DATABASE_HOST=inventory-db
+      - DATABASE_PORT=5432
+      - DATABASE_USER=inventory_user_dev
+      - DATABASE_PASSWORD=inventory_pass_dev
+      - DATABASE_NAME=inventory_db_dev
+      - RABBITMQ_URL=amqp://store_broker:broker_secure_pass@rabbitmq:5672/
+      - SECRET_KEY=317273fc10fb454c2916b9f0d416edf0de8759df3a5361021e75af3c0ca8a0a2
+      - ALGORITHM=HS256
+      - JWT_TOKEN_URL=http://auth-service:8000/auth/login
+    networks:
+      - store-backend-network
+      - store-frontend-network
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
